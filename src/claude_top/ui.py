@@ -94,7 +94,7 @@ class UsageDisplay(Vertical):
             if total_cache_ops > 0:
                 hit_rate = (cache_read / total_cache_ops) * 100
                 lines.append(
-                    Text.assemble((f"Cache hit rate: ", "bold #CC785C"), (f"{hit_rate:.1f}%", "#52A66A"))
+                    Text.assemble(("Cache hit rate: ", "bold #CC785C"), (f"{hit_rate:.1f}%", "#52A66A"))
                 )
 
             # Average tokens per request
@@ -228,15 +228,6 @@ class UsageDisplay(Vertical):
             lines.append(
                 Text.assemble((bar, daily_color), (f" {daily_pct:.1f}%", "bold"))
             )
-            lines.append(
-                Text.assemble(
-                    (
-                        f"{status['daily_tokens_used']:,} / {status['daily_tokens_limit']:,} tokens ",
-                        "",
-                    ),
-                    (f"({status['daily_tokens_remaining']:,} remaining)", "dim"),
-                )
-            )
 
             # Weekly usage
             lines.append(Text(""))
@@ -269,15 +260,6 @@ class UsageDisplay(Vertical):
 
             lines.append(
                 Text.assemble((bar, weekly_color), (f" {weekly_pct:.1f}%", "bold"))
-            )
-            lines.append(
-                Text.assemble(
-                    (
-                        f"{status['weekly_tokens_used']:,} / {status['weekly_tokens_limit']:,} tokens ",
-                        "",
-                    ),
-                    (f"({status['weekly_tokens_remaining']:,} remaining)", "dim"),
-                )
             )
 
         # Period info

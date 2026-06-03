@@ -1,7 +1,5 @@
 """Tests for data module."""
 
-import pytest
-from datetime import datetime
 from claude_top import data
 
 

@@ -1,10 +1,11 @@
 """Authentication and credential management using system keyring."""
 
 import json
-import keyring
-from pathlib import Path
-from typing import Optional, Any
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Optional
+
+import keyring
 
 SERVICE_NAME = "claude-top"
 USERNAME = "api-key"
@@ -26,7 +27,7 @@ def get_claude_code_credentials() -> Optional[dict[str, Any]]:
     for creds_path in possible_paths:
         if creds_path.exists():
             try:
-                with open(creds_path, "r") as f:
+                with open(creds_path) as f:
                     data = json.load(f)
 
                 if "claudeAiOauth" in data:
@@ -41,7 +42,7 @@ def get_claude_code_credentials() -> Optional[dict[str, Any]]:
                             "expires_at": expires_at,
                             "source": "claude_code"
                         }
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 continue
 
     return None

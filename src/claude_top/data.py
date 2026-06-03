@@ -82,7 +82,7 @@ def get_access_token() -> Optional[str]:
         if not creds_file.exists():
             return None
 
-        with open(creds_file, "r", encoding="utf-8") as f:
+        with open(creds_file, encoding="utf-8") as f:
             creds = json.load(f)
             return creds.get("claudeAiOauth", {}).get("accessToken")
     except Exception:
@@ -166,7 +166,7 @@ def fetch_usage_from_api(force_refresh: bool = False) -> Optional[dict[str, Any]
                 _api_cache_timestamp = datetime.now(timezone.utc)
                 return limits
 
-    except (requests.RequestException, ValueError, KeyError) as e:
+    except (requests.RequestException, ValueError, KeyError):
         # Log error but don't crash - return stale cache if available
         pass
 
@@ -191,7 +191,7 @@ def read_session_files() -> list[dict[str, Any]]:
     # Read all .jsonl files in projects directory
     for jsonl_file in projects_dir.rglob("*.jsonl"):
         try:
-            with open(jsonl_file, "r", encoding="utf-8") as f:
+            with open(jsonl_file, encoding="utf-8") as f:
                 for line in f:
                     if line.strip():
                         try:
@@ -199,7 +199,7 @@ def read_session_files() -> list[dict[str, Any]]:
                             events.append(event)
                         except json.JSONDecodeError:
                             continue
-        except (IOError, OSError):
+        except OSError:
             continue
 
     return events

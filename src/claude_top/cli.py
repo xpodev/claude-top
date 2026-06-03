@@ -23,7 +23,7 @@ err_console = Console(stderr=True)
 
 def print_usage_table(usage_data: dict, show_detailed: bool = False) -> None:
     """Print usage data as a Rich table."""
-    from rich.progress import Progress, BarColumn, TextColumn
+    from rich.progress import BarColumn, Progress, TextColumn
 
     def compact_trend(values: list[int]) -> str:
         """Create a compact ASCII trend line."""

@@ -1,12 +1,11 @@
 """OAuth authentication flow for Anthropic."""
 
+import threading
 import time
 import webbrowser
-from typing import Optional, Any
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
-import threading
-import json
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Any, Optional
+from urllib.parse import parse_qs, urlparse
 
 # Anthropic OAuth configuration
 # Note: These would need to be the actual Anthropic OAuth endpoints
