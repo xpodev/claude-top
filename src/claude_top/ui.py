@@ -63,9 +63,13 @@ class UsageDisplay(Vertical):
             daily_pct = status.get("daily_tokens_percentage", 0)
             weekly_pct = status.get("weekly_tokens_percentage", 0)
             if daily_pct >= 90 or weekly_pct >= 90:
-                lines.append(Text("ALERT: usage is above 90% of one or more limits.", style="bold #D96B6B"))
+                lines.append(
+                    Text("ALERT: usage is above 90% of one or more limits.", style="bold #D96B6B")
+                )
             elif daily_pct >= 80 or weekly_pct >= 80:
-                lines.append(Text("Warning: usage is above 80% of one or more limits.", style="bold #E8A84D"))
+                lines.append(
+                    Text("Warning: usage is above 80% of one or more limits.", style="bold #E8A84D")
+                )
         # Cache statistics and extra details when in detailed view
         if self.show_detailed:
             cache_read = usage.get("total_cache_read_tokens", 0)
@@ -94,22 +98,32 @@ class UsageDisplay(Vertical):
             if total_cache_ops > 0:
                 hit_rate = (cache_read / total_cache_ops) * 100
                 lines.append(
-                    Text.assemble(("Cache hit rate: ", "bold #CC785C"), (f"{hit_rate:.1f}%", "#52A66A"))
+                    Text.assemble(
+                        ("Cache hit rate: ", "bold #CC785C"), (f"{hit_rate:.1f}%", "#52A66A")
+                    )
                 )
 
             # Average tokens per request
             insights = usage.get("insights", {})
             total_reqs = usage.get("total_requests", 0) or 1
-            avg_tokens = insights.get("avg_tokens_per_request", usage.get("total_tokens", 0) / total_reqs)
+            avg_tokens = insights.get(
+                "avg_tokens_per_request", usage.get("total_tokens", 0) / total_reqs
+            )
             lines.append(
-                Text.assemble(("Avg tokens/request: ", "bold #CC785C"), (f"{avg_tokens:.1f}", "#E8956D"))
+                Text.assemble(
+                    ("Avg tokens/request: ", "bold #CC785C"), (f"{avg_tokens:.1f}", "#E8956D")
+                )
             )
 
             # Cost estimate breakdown
             cost_total = insights.get("cost_estimate_usd", 0.0)
             cost_breakdown = insights.get("cost_breakdown_usd", {})
             lines.append(
-                Text.assemble(("Estimated cost: ", "bold #CC785C"), (f"${cost_total:.2f}", "#E8956D"), (" (approx)", "dim"))
+                Text.assemble(
+                    ("Estimated cost: ", "bold #CC785C"),
+                    (f"${cost_total:.2f}", "#E8956D"),
+                    (" (approx)", "dim"),
+                )
             )
             if cost_breakdown:
                 lines.append(
@@ -133,9 +147,7 @@ class UsageDisplay(Vertical):
                     line = "".join(levels[int((v / max_val) * (len(levels) - 1))] for v in values)
                 else:
                     line = " " * len(values)
-                lines.append(
-                    Text.assemble(("7-day trend: ", "bold #CC785C"), (line, "#E8956D"))
-                )
+                lines.append(Text.assemble(("7-day trend: ", "bold #CC785C"), (line, "#E8956D")))
 
             # Historical comparison (this week vs last week)
             comparison = usage.get("weekly_comparison", {})
@@ -174,12 +186,16 @@ class UsageDisplay(Vertical):
             # Show top 3 models by tokens
             models = usage.get("models", {})
             if models:
-                top = sorted(models.items(), key=lambda it: it[1].get("tokens", 0), reverse=True)[:3]
+                top = sorted(models.items(), key=lambda it: it[1].get("tokens", 0), reverse=True)[
+                    :3
+                ]
                 lines.append(Text(""))
                 lines.append(Text("Top models:", style="bold #CC785C"))
                 for m, s in top:
                     lines.append(
-                        Text.assemble((f"  {m}", "#E8956D"), (f" — {s.get('tokens',0):,} tokens", "dim"))
+                        Text.assemble(
+                            (f"  {m}", "#E8956D"), (f" — {s.get('tokens',0):,} tokens", "dim")
+                        )
                     )
 
         # Usage status with limits
@@ -214,20 +230,14 @@ class UsageDisplay(Vertical):
 
             daily_pct = status["daily_tokens_percentage"]
             daily_color = (
-                "#52A66A"
-                if daily_pct < 70
-                else "#E8A84D"
-                if daily_pct < 90
-                else "#D96B6B"
+                "#52A66A" if daily_pct < 70 else "#E8A84D" if daily_pct < 90 else "#D96B6B"
             )
 
             bar_width = 50
             filled = int(bar_width * daily_pct / 100)
             bar = "█" * filled + "░" * (bar_width - filled)
 
-            lines.append(
-                Text.assemble((bar, daily_color), (f" {daily_pct:.1f}%", "bold"))
-            )
+            lines.append(Text.assemble((bar, daily_color), (f" {daily_pct:.1f}%", "bold")))
 
             # Weekly usage
             lines.append(Text(""))
@@ -248,19 +258,13 @@ class UsageDisplay(Vertical):
 
             weekly_pct = status["weekly_tokens_percentage"]
             weekly_color = (
-                "#52A66A"
-                if weekly_pct < 70
-                else "#E8A84D"
-                if weekly_pct < 90
-                else "#D96B6B"
+                "#52A66A" if weekly_pct < 70 else "#E8A84D" if weekly_pct < 90 else "#D96B6B"
             )
 
             filled = int(bar_width * weekly_pct / 100)
             bar = "█" * filled + "░" * (bar_width - filled)
 
-            lines.append(
-                Text.assemble((bar, weekly_color), (f" {weekly_pct:.1f}%", "bold"))
-            )
+            lines.append(Text.assemble((bar, weekly_color), (f" {weekly_pct:.1f}%", "bold")))
 
         # Period info
         if usage.get("period"):
@@ -444,9 +448,7 @@ class UsageApp(App):
         except Exception:
             # Widgets don't exist yet, create them
             container.remove_children()
-            title = Static(
-                "[bold #CC785C]Usage by Model[/bold #CC785C]", id="models-title"
-            )
+            title = Static("[bold #CC785C]Usage by Model[/bold #CC785C]", id="models-title")
             table = DataTable(id="models-table", show_header=True, zebra_stripes=True)
             container.mount(title)
             container.mount(table)

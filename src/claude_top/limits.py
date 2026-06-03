@@ -56,7 +56,9 @@ def _parse_countdown(resets_at: Optional[str], now: datetime) -> str:
         return "unknown"
 
 
-def get_time_until_reset(first_request_time: datetime, reset_type: str = "session") -> dict[str, Any]:
+def get_time_until_reset(
+    first_request_time: datetime, reset_type: str = "session"
+) -> dict[str, Any]:
     """
     Calculate time until the next limit reset based on first request time.
 
@@ -141,11 +143,9 @@ def get_usage_status(usage_data: dict[str, Any]) -> dict[str, Any]:
         "tier_available": True,
         "tier_name": tier_name,
         "subscription_type": subscription_type,
-
         # 5-hour session window
         "daily_tokens_percentage": float(five_hour.get("utilization", 0.0)),
         "daily_reset_countdown": _parse_countdown(five_hour.get("resets_at"), now),
-
         # 7-day rolling window
         "weekly_tokens_percentage": float(seven_day.get("utilization", 0.0)),
         "weekly_reset_countdown": _parse_countdown(seven_day.get("resets_at"), now),

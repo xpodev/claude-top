@@ -23,6 +23,7 @@ ESTIMATED_PRICING_USD_PER_MILLION = {
 
 class UsageDataError(Exception):
     """Error reading usage data from local files."""
+
     pass
 
 
@@ -134,13 +135,11 @@ def fetch_usage_from_api(force_refresh: bool = False) -> Optional[dict[str, Any]
         headers = {
             "Authorization": f"Bearer {token}",
             "anthropic-beta": "oauth-2025-04-20",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         response = requests.get(
-            "https://api.anthropic.com/api/oauth/usage",
-            headers=headers,
-            timeout=10
+            "https://api.anthropic.com/api/oauth/usage", headers=headers, timeout=10
         )
 
         if response.status_code == 200:
@@ -221,17 +220,21 @@ def extract_usage_from_events(events: list[dict[str, Any]]) -> dict[str, Any]:
         "total_output_tokens": 0,
         "total_cache_creation_tokens": 0,
         "total_cache_read_tokens": 0,
-        "models": defaultdict(lambda: {
-            "requests": 0,
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "cache_creation_tokens": 0,
-            "cache_read_tokens": 0,
-        }),
-        "projects": defaultdict(lambda: {
-            "requests": 0,
-            "tokens": 0,
-        }),
+        "models": defaultdict(
+            lambda: {
+                "requests": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cache_creation_tokens": 0,
+                "cache_read_tokens": 0,
+            }
+        ),
+        "projects": defaultdict(
+            lambda: {
+                "requests": 0,
+                "tokens": 0,
+            }
+        ),
         "daily_trend": defaultdict(lambda: {"tokens": 0, "requests": 0}),
         "weekly_comparison": {
             "this_week_tokens": 0,
@@ -272,9 +275,7 @@ def extract_usage_from_events(events: list[dict[str, Any]]) -> dict[str, Any]:
                 output_tokens = usage.get("output_tokens", 0)
                 cache_creation = usage.get("cache_creation_input_tokens", 0)
                 cache_read = usage.get("cache_read_input_tokens", 0)
-                total_event_tokens = (
-                    input_tokens + output_tokens + cache_creation + cache_read
-                )
+                total_event_tokens = input_tokens + output_tokens + cache_creation + cache_read
 
                 # Update totals
                 usage_data["total_input_tokens"] += input_tokens
@@ -384,10 +385,7 @@ def format_usage_data(data: dict[str, Any]) -> dict[str, Any]:
     Returns:
         Formatted usage data with standardized keys
     """
-    total_tokens = (
-        data.get("total_input_tokens", 0) +
-        data.get("total_output_tokens", 0)
-    )
+    total_tokens = data.get("total_input_tokens", 0) + data.get("total_output_tokens", 0)
 
     formatted: dict[str, Any] = {
         "timestamp": datetime.now().isoformat(),
@@ -444,10 +442,18 @@ def format_usage_data(data: dict[str, Any]) -> dict[str, Any]:
     total_requests = formatted.get("total_requests", 0)
     avg_tokens_per_request = total_tokens / (total_requests or 1)
 
-    input_cost = (formatted["total_input_tokens"] / 1_000_000) * ESTIMATED_PRICING_USD_PER_MILLION["input_tokens"]
-    output_cost = (formatted["total_output_tokens"] / 1_000_000) * ESTIMATED_PRICING_USD_PER_MILLION["output_tokens"]
-    cache_write_cost = (formatted["total_cache_creation_tokens"] / 1_000_000) * ESTIMATED_PRICING_USD_PER_MILLION["cache_creation_tokens"]
-    cache_read_cost = (formatted["total_cache_read_tokens"] / 1_000_000) * ESTIMATED_PRICING_USD_PER_MILLION["cache_read_tokens"]
+    input_cost = (formatted["total_input_tokens"] / 1_000_000) * ESTIMATED_PRICING_USD_PER_MILLION[
+        "input_tokens"
+    ]
+    output_cost = (
+        formatted["total_output_tokens"] / 1_000_000
+    ) * ESTIMATED_PRICING_USD_PER_MILLION["output_tokens"]
+    cache_write_cost = (
+        formatted["total_cache_creation_tokens"] / 1_000_000
+    ) * ESTIMATED_PRICING_USD_PER_MILLION["cache_creation_tokens"]
+    cache_read_cost = (
+        formatted["total_cache_read_tokens"] / 1_000_000
+    ) * ESTIMATED_PRICING_USD_PER_MILLION["cache_read_tokens"]
 
     formatted["insights"] = {
         "avg_tokens_per_request": avg_tokens_per_request,

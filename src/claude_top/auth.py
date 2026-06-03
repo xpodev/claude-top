@@ -40,7 +40,7 @@ def get_claude_code_credentials() -> Optional[dict[str, Any]]:
                             "access_token": oauth.get("accessToken"),
                             "refresh_token": oauth.get("refreshToken"),
                             "expires_at": expires_at,
-                            "source": "claude_code"
+                            "source": "claude_code",
                         }
             except (OSError, json.JSONDecodeError):
                 continue
