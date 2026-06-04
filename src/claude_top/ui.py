@@ -388,9 +388,15 @@ class UsageApp(App):
         ("r", "refresh", "Refresh"),
     ]
 
-    def __init__(self, watch_interval: Optional[int] = 1, show_detailed: bool = False):
+    def __init__(
+        self,
+        watch_interval: Optional[int] = 1,
+        api_refresh_minutes: int = 1,
+        show_detailed: bool = False,
+    ):
         super().__init__()
         self.watch_interval = watch_interval
+        self.api_refresh_minutes = api_refresh_minutes
         self.show_detailed = show_detailed
         self.usage_data: Optional[dict[str, Any]] = None
 
@@ -406,32 +412,38 @@ class UsageApp(App):
 
     async def on_mount(self) -> None:
         """Initialize app on mount."""
-        await self.refresh_data()
+        # Initial load: fetch API data then local files
+        await self._refresh_api_and_display()
 
-        # Set up auto-refresh if watch interval provided
+        # Local refresh timer: only reads session files, uses cached API data
         if self.watch_interval:
-            self.set_interval(self.watch_interval, self.refresh_data)
+            self.set_interval(self.watch_interval, self._refresh_local)
 
-    async def refresh_data(self) -> None:
-        """Fetch and display usage data."""
+        # API refresh timer: re-fetches utilization percentages from the API
+        if self.api_refresh_minutes:
+            self.set_interval(self.api_refresh_minutes * 60, self._refresh_api_and_display)
+
+    async def _refresh_local(self) -> None:
+        """Read local session files and update display using cached API data."""
         summary_widget = self.query_one("#summary", UsageDisplay)
 
         try:
-            # Fetch data in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
             raw_data = await loop.run_in_executor(None, data.fetch_usage)
             self.usage_data = data.format_usage_data(raw_data)
-
-            # Update summary widget with new data
             summary_widget.usage_data = self.usage_data
-
-            # Update models table
             self._update_models_table()
 
         except data.UsageDataError as e:
             error_msg = f"[bold red]Error:[/bold red] {str(e)}"
             content = summary_widget.query_one("#usage-content", Static)
             content.update(error_msg)
+
+    async def _refresh_api_and_display(self) -> None:
+        """Fetch fresh API utilization data, then refresh the local display."""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, data.fetch_api_data_fresh)
+        await self._refresh_local()
 
     def _update_models_table(self) -> None:
         """Update the models usage table."""
@@ -468,8 +480,8 @@ class UsageApp(App):
                 )
 
     def action_refresh(self) -> None:
-        """Refresh data on 'r' key."""
-        self.run_worker(self.refresh_data())
+        """Refresh both API data and local session files on 'r' key."""
+        self.run_worker(self._refresh_api_and_display())
 
     def action_quit(self) -> None:
         """Quit the app."""

@@ -266,7 +266,17 @@ def main(
     watch: Annotated[
         Optional[int],
         typer.Option(
-            "--watch", help="Custom refresh interval in seconds (default: 1)", metavar="N"
+            "--watch",
+            help="Local refresh interval in seconds (reads session files only, default: 1)",
+            metavar="N",
+        ),
+    ] = None,
+    api_refresh: Annotated[
+        Optional[int],
+        typer.Option(
+            "--api-refresh",
+            help="How often to fetch utilization percentages from the API, in minutes (default: 1)",
+            metavar="MINUTES",
         ),
     ] = None,
 ) -> None:
@@ -283,14 +293,22 @@ def main(
     else:
         watch_interval = 1  # Default 1 second
 
+    api_refresh_minutes = api_refresh if api_refresh is not None else 1
+
     # Launch TUI if no flags
     if not no_ui and not json:
-        app_instance = UsageApp(watch_interval=watch_interval, show_detailed=detailed)
+        app_instance = UsageApp(
+            watch_interval=watch_interval,
+            api_refresh_minutes=api_refresh_minutes,
+            show_detailed=detailed,
+        )
         app_instance.run()
         return
 
     # Fetch data for --no-ui or --json modes
     try:
+        # Always fetch fresh API data on startup
+        data.fetch_api_data_fresh()
         raw_data = data.fetch_usage()
         usage_data = data.format_usage_data(raw_data)
 
@@ -301,10 +319,17 @@ def main(
 
         # Handle --no-ui output
         if watch_interval:
-            # Live refresh mode
+            # Live refresh mode — local reads every watch_interval, API every api_refresh_minutes
+            api_refresh_secs = api_refresh_minutes * 60
+            last_api_refresh = time.time()
+
             with Live(console=console, refresh_per_second=0.5) as live:
                 while True:
                     try:
+                        now = time.time()
+                        if now - last_api_refresh >= api_refresh_secs:
+                            data.fetch_api_data_fresh()
+                            last_api_refresh = now
                         raw_data = data.fetch_usage()
                         usage_data = data.format_usage_data(raw_data)
                         live.console.clear()

@@ -172,6 +172,16 @@ def fetch_usage_from_api(force_refresh: bool = False) -> Optional[dict[str, Any]
     return _api_usage_cache  # Return stale cache on error
 
 
+def get_cached_api_data() -> Optional[dict[str, Any]]:
+    """Return the in-memory API usage cache without making a new API call."""
+    return _api_usage_cache
+
+
+def fetch_api_data_fresh() -> Optional[dict[str, Any]]:
+    """Force a fresh API call, update the cache, and return the result."""
+    return fetch_usage_from_api(force_refresh=True)
+
+
 def read_session_files() -> list[dict[str, Any]]:
     """
     Read all Claude Code session JSONL files.

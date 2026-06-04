@@ -122,7 +122,7 @@ def get_usage_status(usage_data: dict[str, Any]) -> dict[str, Any]:
     """
     from . import data as data_module
 
-    api_data = data_module.fetch_usage_from_api()
+    api_data = data_module.get_cached_api_data()
     tier_info = get_user_tier()
 
     tier_name = tier_info["tier_name"] if tier_info else "Unknown"
