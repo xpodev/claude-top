@@ -14,7 +14,7 @@ def test_tier_display_names():
 
 def test_get_usage_status_no_api_data():
     """Returns tier_available=False when API is unavailable."""
-    with patch("claude_top.data.fetch_usage_from_api", return_value=None), \
+    with patch("claude_top.data.get_cached_api_data", return_value=None), \
          patch("claude_top.limits.get_user_tier", return_value=None):
         status = limits.get_usage_status({})
         assert status["tier_available"] is False
@@ -26,7 +26,7 @@ def test_get_usage_status_with_api_data():
         "five_hour": {"utilization": 35.0, "resets_at": None},
         "seven_day": {"utilization": 12.5, "resets_at": None},
     }
-    with patch("claude_top.data.fetch_usage_from_api", return_value=api_data), \
+    with patch("claude_top.data.get_cached_api_data", return_value=api_data), \
          patch("claude_top.limits.get_user_tier", return_value={"tier_name": "Team", "subscription_type": "team"}):
         status = limits.get_usage_status({"total_tokens": 1000000})
 
