@@ -30,7 +30,7 @@ A CLI + TUI utility for inspecting Claude Code usage from local session files.
 
 Notes:
 - No setup is required to read local usage files.
-- If `~/.claude/.credentials.json` is present with a valid OAuth token, `claude-top` also tries to fetch usage window reset metadata from Anthropic OAuth usage API for better countdowns.
+- If `~/.claude/.credentials.json` is present with a valid OAuth token, `claude-top` fetches utilization percentages from the Anthropic OAuth usage API on a configurable interval (default: once per minute). Local session files are read more frequently to track new tokens without hitting rate limits.
 
 ## Installation
 
@@ -77,6 +77,9 @@ claude-top --json
 
 # Include detailed analytics
 claude-top --detailed
+
+# Fetch API utilization every 5 minutes instead of the default 1
+claude-top --api-refresh 5
 ```
 
 ### CLI options
@@ -85,11 +88,12 @@ claude-top --detailed
 - `--no-ui`: Use table output instead of the TUI.
 - `--json`: Print JSON output and exit.
 - `--detailed`: Include detailed analytics.
-- `--watch N`: Refresh interval in seconds (default: 1 when not using `--once`).
+- `--watch N`: How often to read local session files, in seconds (default: 1).
+- `--api-refresh MINUTES`: How often to fetch utilization percentages from the Anthropic API, in minutes (default: 1). Increase this to reduce API calls.
 
 ### TUI keybindings
 
-- `r`: Refresh now
+- `r`: Refresh — fetches fresh API data **and** re-reads local session files
 - `q`: Quit
 
 ## How data is calculated
@@ -122,6 +126,10 @@ Tier and reset countdown information depends on OAuth metadata. If unavailable:
 - check network access to Anthropic API.
 
 The tool still works with local usage data even if tier/reset metadata cannot be fetched.
+
+### Utilization percentages not updating
+
+Usage bars reflect the last API response. By default the API is polled once per minute. Press `r` to force an immediate refresh, or lower `--api-refresh` (e.g. `--api-refresh 1`).
 
 ## Development
 
