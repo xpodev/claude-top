@@ -9,7 +9,7 @@ from rich.live import Live
 from rich.table import Table
 
 from . import data, limits
-from .ui import UsageApp
+from .ui import ClaudeTop
 
 app = typer.Typer(
     name="claude-top",
@@ -297,7 +297,7 @@ def main(
 
     # Launch TUI if no flags
     if not no_ui and not json:
-        app_instance = UsageApp(
+        app_instance = ClaudeTop(
             watch_interval=watch_interval,
             api_refresh_minutes=api_refresh_minutes,
             show_detailed=detailed,

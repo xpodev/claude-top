@@ -339,7 +339,7 @@ class UsageDisplay(Vertical):
         content.update(combined)
 
 
-class UsageApp(App):
+class ClaudeTop(App):
     """Textual app for Claude usage statistics."""
 
     TITLE = "Claude Top"
@@ -406,7 +406,7 @@ class UsageApp(App):
         ("r", "refresh", "Refresh"),
     ]
 
-    def __init__(
+    def ClaudeTop(
         self,
         watch_interval: Optional[int] = 1,
         api_refresh_minutes: int = 1,
