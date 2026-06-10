@@ -1,7 +1,9 @@
 """Textual TUI for displaying Claude usage statistics."""
 
 import asyncio
+import json
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Optional
 
 from rich.text import Text
@@ -11,6 +13,22 @@ from textual.reactive import reactive
 from textual.widgets import DataTable, Footer, Header, Static
 
 from . import data, limits
+
+_SETTINGS_FILE = Path.home() / ".claude" / "claude_top_settings.json"
+
+
+def _load_settings() -> dict:
+    try:
+        return json.loads(_SETTINGS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_settings(settings: dict) -> None:
+    try:
+        _SETTINGS_FILE.write_text(json.dumps(settings), encoding="utf-8")
+    except Exception:
+        pass
 
 
 class UsageDisplay(Vertical):
@@ -399,6 +417,7 @@ class UsageApp(App):
         self.api_refresh_minutes = api_refresh_minutes
         self.show_detailed = show_detailed
         self.usage_data: Optional[dict[str, Any]] = None
+        self._saved_theme: Optional[str] = _load_settings().get("theme")
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
@@ -412,6 +431,9 @@ class UsageApp(App):
 
     async def on_mount(self) -> None:
         """Initialize app on mount."""
+        if self._saved_theme:
+            self.theme = self._saved_theme
+
         # Initial load: fetch API data then local files
         await self._refresh_api_and_display()
 
@@ -478,6 +500,12 @@ class UsageApp(App):
                     f"{stats.get('tokens', 0):,}",
                     f"{stats.get('requests', 0):,}",
                 )
+
+    def watch_theme(self, theme: str) -> None:
+        """Persist the theme whenever it changes."""
+        settings = _load_settings()
+        settings["theme"] = theme
+        _save_settings(settings)
 
     def action_refresh(self) -> None:
         """Refresh both API data and local session files on 'r' key."""
