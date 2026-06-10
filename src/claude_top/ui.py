@@ -406,7 +406,7 @@ class ClaudeTop(App):
         ("r", "refresh", "Refresh"),
     ]
 
-    def ClaudeTop(
+    def __init__(
         self,
         watch_interval: Optional[int] = 1,
         api_refresh_minutes: int = 1,
