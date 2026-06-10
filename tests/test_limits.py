@@ -14,8 +14,10 @@ def test_tier_display_names():
 
 def test_get_usage_status_no_api_data():
     """Returns tier_available=False when API is unavailable."""
-    with patch("claude_top.data.get_cached_api_data", return_value=None), \
-         patch("claude_top.limits.get_user_tier", return_value=None):
+    with (
+        patch("claude_top.data.get_cached_api_data", return_value=None),
+        patch("claude_top.limits.get_user_tier", return_value=None),
+    ):
         status = limits.get_usage_status({})
         assert status["tier_available"] is False
 
@@ -26,8 +28,13 @@ def test_get_usage_status_with_api_data():
         "five_hour": {"utilization": 35.0, "resets_at": None},
         "seven_day": {"utilization": 12.5, "resets_at": None},
     }
-    with patch("claude_top.data.get_cached_api_data", return_value=api_data), \
-         patch("claude_top.limits.get_user_tier", return_value={"tier_name": "Team", "subscription_type": "team"}):
+    with (
+        patch("claude_top.data.get_cached_api_data", return_value=api_data),
+        patch(
+            "claude_top.limits.get_user_tier",
+            return_value={"tier_name": "Team", "subscription_type": "team"},
+        ),
+    ):
         status = limits.get_usage_status({"total_tokens": 1000000})
 
     assert status["tier_available"] is True
@@ -40,13 +47,15 @@ def test_get_usage_status_with_api_data():
 def test_parse_countdown_unknown_when_none():
     """None resets_at returns 'unknown'."""
     from datetime import datetime, timezone
+
     now = datetime.now(timezone.utc)
     assert limits._parse_countdown(None, now) == "unknown"
 
 
 def test_parse_countdown_now_when_past():
     """Expired reset time returns 'now'."""
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta, timezone
+
     now = datetime.now(timezone.utc)
     past = (now - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
     assert limits._parse_countdown(past, now) == "now"
