@@ -108,52 +108,6 @@ class UsageDisplay(Vertical):
             )
         )
 
-        # Token type breakdown (always visible)
-        input_tokens = usage.get("total_input_tokens", 0)
-        output_tokens = usage.get("total_output_tokens", 0)
-        cache_creation = usage.get("total_cache_creation_tokens", 0)
-        cache_read = usage.get("total_cache_read_tokens", 0)
-        total_all = input_tokens + output_tokens + cache_creation + cache_read
-
-        if total_all > 0:
-
-            def _pct(n: int) -> str:
-                return f"{n / total_all * 100:5.1f}%" if total_all > 0 else "  0.0%"
-
-            lines.append(Text(""))
-            lines.append(Text("Token Breakdown:", style="bold #CC785C"))
-            lines.append(
-                Text.assemble(
-                    ("  Input        ", "dim"),
-                    (f"{input_tokens:>10,}", "#E8956D"),
-                    (f"  {_pct(input_tokens)}", "dim"),
-                )
-            )
-            lines.append(
-                Text.assemble(
-                    ("  Output       ", "dim"),
-                    (f"{output_tokens:>10,}", "#52A66A"),
-                    (f"  {_pct(output_tokens)}", "dim"),
-                )
-            )
-            if cache_read > 0:
-                lines.append(
-                    Text.assemble(
-                        ("  Cache Reads  ", "dim"),
-                        (f"{cache_read:>10,}", "#52A66A"),
-                        (f"  {_pct(cache_read)}", "dim"),
-                        ("  (saved)", "dim italic"),
-                    )
-                )
-            if cache_creation > 0:
-                lines.append(
-                    Text.assemble(
-                        ("  Cache Writes ", "dim"),
-                        (f"{cache_creation:>10,}", "#E8A84D"),
-                        (f"  {_pct(cache_creation)}", "dim"),
-                    )
-                )
-
         if status.get("tier_available"):
             daily_pct = status.get("daily_tokens_percentage", 0)
             weekly_pct = status.get("weekly_tokens_percentage", 0)
@@ -572,24 +526,61 @@ class ClaudeTop(App):
         await self._refresh_local()
 
     def _update_models_table(self) -> None:
-        """Update the models usage table."""
+        """Update the token breakdown and models usage table in the right panel."""
         if not self.usage_data:
             return
 
         container = self.query_one("#models-container")
 
-        # Try to get existing widgets, or create new ones
+        # Try to get existing widgets, or create new ones on first run
         try:
+            breakdown_widget = container.query_one("#token-breakdown", Static)
             title = container.query_one("#models-title", Static)
             table = container.query_one("#models-table", DataTable)
             table.clear()
         except Exception:
-            # Widgets don't exist yet, create them
             container.remove_children()
+            breakdown_widget = Static("", id="token-breakdown")
             title = Static("[bold #CC785C]Usage by Model[/bold #CC785C]", id="models-title")
             table = DataTable(id="models-table", show_header=True, zebra_stripes=True)
+            container.mount(breakdown_widget)
             container.mount(title)
             container.mount(table)
+
+        # Build token breakdown text
+        input_tokens = self.usage_data.get("total_input_tokens", 0)
+        output_tokens = self.usage_data.get("total_output_tokens", 0)
+        cache_creation = self.usage_data.get("total_cache_creation_tokens", 0)
+        cache_read = self.usage_data.get("total_cache_read_tokens", 0)
+        total_all = input_tokens + output_tokens + cache_creation + cache_read
+
+        bd = Text()
+        bd.append("Token Breakdown\n", style="bold #CC785C")
+        if total_all > 0:
+            def _pct(n: int) -> str:
+                return f"{n / total_all * 100:5.1f}%"
+
+            bd.append("  Input        ", style="dim")
+            bd.append(f"{input_tokens:>10,}", style="#E8956D")
+            bd.append(f"  {_pct(input_tokens)}\n", style="dim")
+
+            bd.append("  Output       ", style="dim")
+            bd.append(f"{output_tokens:>10,}", style="#52A66A")
+            bd.append(f"  {_pct(output_tokens)}\n", style="dim")
+
+            if cache_read > 0:
+                bd.append("  Cache Reads  ", style="dim")
+                bd.append(f"{cache_read:>10,}", style="#52A66A")
+                bd.append(f"  {_pct(cache_read)}", style="dim")
+                bd.append("  (saved)\n", style="dim italic")
+
+            if cache_creation > 0:
+                bd.append("  Cache Writes ", style="dim")
+                bd.append(f"{cache_creation:>10,}", style="#E8A84D")
+                bd.append(f"  {_pct(cache_creation)}\n", style="dim")
+
+        bd.append("\n")
+        breakdown_widget.update(bd)
 
         # Update table columns if needed
         if not table.columns:
