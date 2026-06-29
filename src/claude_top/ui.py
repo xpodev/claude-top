@@ -12,7 +12,7 @@ from textual.containers import Container, Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widgets import DataTable, Footer, Header, Static
 
-from . import data, limits
+from . import auth, data, limits
 
 _SETTINGS_FILE = Path.home() / ".claude" / "claude_top_settings.json"
 
@@ -53,6 +53,37 @@ class UsageDisplay(Vertical):
         """Update the display with new usage data."""
 
         lines = []
+
+        # Token expiry warning (shown at the top when the OAuth token is stale)
+        token_warning = usage.get("_token_warning", "")
+        if token_warning == "open_claude":
+            lines.append(
+                Text(
+                    "⚠ Token expired — launched Claude Code in the background to refresh.",
+                    style="bold #E8A84D",
+                )
+            )
+            lines.append(
+                Text(
+                    "  If rate limits are not showing, open Claude Code manually.",
+                    style="dim #E8A84D",
+                )
+            )
+            lines.append(Text(""))
+        elif token_warning == "no_claude":
+            lines.append(
+                Text(
+                    "⚠ Token expired — open Claude Code to refresh the OAuth token.",
+                    style="bold #E8A84D",
+                )
+            )
+            lines.append(
+                Text(
+                    "  Rate limit data is unavailable until the token is refreshed.",
+                    style="dim #E8A84D",
+                )
+            )
+            lines.append(Text(""))
 
         # Compute status early for alert coloring in all views.
         status = limits.get_usage_status(usage)
@@ -464,6 +495,7 @@ class ClaudeTop(App):
         self.show_detailed = show_detailed
         self.usage_data: Optional[dict[str, Any]] = None
         self._saved_theme: Optional[str] = _load_settings().get("theme")
+        self._token_warning: str = ""
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
@@ -499,18 +531,44 @@ class ClaudeTop(App):
             loop = asyncio.get_event_loop()
             raw_data = await loop.run_in_executor(None, data.fetch_usage)
             self.usage_data = data.format_usage_data(raw_data)
+            if self._token_warning:
+                self.usage_data["_token_warning"] = self._token_warning
             summary_widget.usage_data = self.usage_data
             self._update_models_table()
 
         except data.UsageDataError as e:
             error_msg = f"[bold red]Error:[/bold red] {str(e)}"
+            if self._token_warning:
+                hint = (
+                    "Launched Claude Code in the background to refresh the token."
+                    if self._token_warning == "open_claude"
+                    else "Open Claude Code to refresh the OAuth token."
+                )
+                error_msg = f"[bold #E8A84D]⚠ Token expired.[/bold #E8A84D] {hint}\n\n{error_msg}"
             content = summary_widget.query_one("#usage-content", Static)
             content.update(error_msg)
 
     async def _refresh_api_and_display(self) -> None:
         """Fetch fresh API utilization data, then refresh the local display."""
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, data.fetch_api_data_fresh)
+
+        if auth.is_token_expired():
+            # Try to revive the token by running claude in the background
+            launched = await loop.run_in_executor(None, auth.try_launch_claude_for_refresh)
+            if launched:
+                # Give the process time to refresh credentials
+                await asyncio.sleep(5)
+                self._token_warning = "" if not auth.is_token_expired() else "open_claude"
+            else:
+                self._token_warning = "no_claude"
+
+            if not self._token_warning:
+                # Token was successfully refreshed — proceed normally
+                await loop.run_in_executor(None, data.fetch_api_data_fresh)
+        else:
+            self._token_warning = ""
+            await loop.run_in_executor(None, data.fetch_api_data_fresh)
+
         await self._refresh_local()
 
     def _update_models_table(self) -> None:

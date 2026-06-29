@@ -1,6 +1,8 @@
 """Authentication and credential management using system keyring."""
 
 import json
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -99,3 +101,59 @@ def get_auth_source() -> str:
         return "keyring"
 
     return "none"
+
+
+def is_token_expired() -> bool:
+    """Return True if the Claude OAuth access token is missing or expired."""
+    creds_path = Path.home() / ".claude" / ".credentials.json"
+    if not creds_path.exists():
+        return True
+    try:
+        with open(creds_path) as f:
+            creds = json.load(f)
+        oauth = creds.get("claudeAiOauth", {})
+        if not oauth.get("accessToken"):
+            return True
+        expires_at = oauth.get("expiresAt", 0)
+        return expires_at <= datetime.now().timestamp() * 1000
+    except Exception:
+        return True
+
+
+def try_launch_claude_for_refresh() -> bool:
+    """
+    Launch the claude CLI in the background so it can refresh the OAuth token.
+
+    Claude Code handles the refresh-token flow internally on startup; running
+    it briefly updates ~/.claude/.credentials.json so claude-top can read the
+    new access token.
+
+    Returns True if the process was launched, False if claude was not found.
+    """
+    import shutil
+
+    claude_path = shutil.which("claude")
+    if not claude_path:
+        return False
+
+    try:
+        popen_kwargs: dict = {
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+        }
+        if sys.platform == "win32":
+            # Prevent a console window from flashing up on Windows
+            popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+            popen_kwargs["shell"] = True
+            cmd: Any = "claude --no-ui --once"
+        else:
+            cmd = [claude_path, "--no-ui", "--once"]
+
+        proc = subprocess.Popen(cmd, **popen_kwargs)
+        try:
+            proc.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            proc.terminate()
+        return True
+    except Exception:
+        return False

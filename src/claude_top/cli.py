@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.live import Live
 from rich.table import Table
 
-from . import data, limits
+from . import auth, data, limits
 from .ui import ClaudeTop
 
 app = typer.Typer(
@@ -337,6 +337,23 @@ def main(
 
     # Fetch data for --no-ui or --json modes
     try:
+        # Warn if the OAuth token is expired; try a background refresh first
+        if auth.is_token_expired():
+            err_console.print(
+                "[bold #E8A84D]Warning:[/bold #E8A84D] Claude OAuth token is expired. "
+                "Trying to refresh by launching Claude Code in the background…"
+            )
+            launched = auth.try_launch_claude_for_refresh()
+            if launched:
+                import time as _time
+                _time.sleep(5)
+            if auth.is_token_expired():
+                err_console.print(
+                    "[bold #E8A84D]Token still expired.[/bold #E8A84D] "
+                    "Open Claude Code to refresh the token. "
+                    "Rate limit data will be unavailable."
+                )
+
         # Always fetch fresh API data on startup
         data.fetch_api_data_fresh()
         raw_data = data.fetch_usage()
