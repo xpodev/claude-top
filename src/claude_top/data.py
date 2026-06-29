@@ -20,6 +20,9 @@ ESTIMATED_PRICING_USD_PER_MILLION = {
     "cache_read_tokens": 0.30,
 }
 
+# Context window size (input + cache_read) above which a request is flagged as "high context".
+HIGH_CONTEXT_THRESHOLD = 150_000
+
 
 class UsageDataError(Exception):
     """Error reading usage data from local files."""
@@ -477,3 +480,111 @@ def format_usage_data(data: dict[str, Any]) -> dict[str, Any]:
     }
 
     return formatted
+
+
+def compute_usage_insights(
+    events: list[dict[str, Any]], window_hours: int = 24
+) -> dict[str, Any]:
+    """
+    Compute 'What's contributing?' characteristics from session events.
+
+    Filters events to the given time window and identifies:
+    - High-context usage (requests with >150k token context window)
+    - Top project contributors by token share
+    """
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(hours=window_hours)
+
+    total_tokens = 0
+    high_context_tokens = 0
+    project_tokens: dict[str, int] = defaultdict(int)
+
+    for event in events:
+        if event.get("type") != "assistant":
+            continue
+
+        ts = event.get("timestamp")
+        if ts:
+            dt = _parse_timestamp_utc(ts)
+            if dt is None or dt < cutoff:
+                continue
+
+        usage = event.get("message", {}).get("usage", {})
+        if not usage:
+            continue
+
+        input_tok = usage.get("input_tokens", 0)
+        output_tok = usage.get("output_tokens", 0)
+        cache_creation = usage.get("cache_creation_input_tokens", 0)
+        cache_read = usage.get("cache_read_input_tokens", 0)
+        context_size = input_tok + cache_read
+        event_tokens = input_tok + output_tok + cache_creation + cache_read
+
+        total_tokens += event_tokens
+        if context_size > HIGH_CONTEXT_THRESHOLD:
+            high_context_tokens += event_tokens
+
+        project_tokens[_infer_project_name(event)] += event_tokens
+
+    top_projects = sorted(project_tokens.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    characteristics: list[dict[str, Any]] = []
+    if total_tokens > 0:
+        if high_context_tokens > 0:
+            pct = round(high_context_tokens / total_tokens * 100)
+            characteristics.append({
+                "pct": pct,
+                "description": f"{pct}% of your usage was at >{HIGH_CONTEXT_THRESHOLD // 1000}k context",
+                "advice": (
+                    "Longer sessions are more expensive even when cached. "
+                    "Use /compact mid-task, /clear when switching to new tasks."
+                ),
+            })
+
+        if top_projects:
+            top_name, top_tok = top_projects[0]
+            top_pct = round(top_tok / total_tokens * 100)
+            if top_pct >= 5:
+                characteristics.append({
+                    "pct": top_pct,
+                    "description": f"{top_pct}% of your usage came from {top_name}",
+                    "advice": (
+                        "Heavy projects consume more tokens. "
+                        "Use /compact regularly to reduce context size."
+                    ),
+                })
+
+    return {
+        "window_hours": window_hours,
+        "total_tokens": total_tokens,
+        "characteristics": characteristics,
+        "top_projects": [
+            {"name": name, "pct": round(tok / total_tokens * 100) if total_tokens > 0 else 0}
+            for name, tok in top_projects
+            if tok > 0
+        ],
+    }
+
+
+def fetch_usage_and_insights(
+    window_hours: int = 24,
+) -> "tuple[dict[str, Any], dict[str, Any]]":
+    """
+    Read session files once and return both formatted usage data and insights.
+    More efficient than calling fetch_usage() and compute_usage_insights() separately.
+    """
+    try:
+        events = read_session_files()
+        if not events:
+            raise UsageDataError(
+                "No Claude Code session data found.\n"
+                "Make sure you've used Claude Code and have active sessions."
+            )
+        raw = extract_usage_from_events(events)
+        formatted = format_usage_data(raw)
+        insights = compute_usage_insights(events, window_hours)
+        return formatted, insights
+    except UsageDataError:
+        raise
+    except Exception as e:
+        raise UsageDataError(f"Error reading session data: {str(e)}")

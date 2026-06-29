@@ -31,6 +31,49 @@ def _save_settings(settings: dict) -> None:
         pass
 
 
+def _render_insights(insights: dict[str, Any]) -> Text:
+    """Build the 'What's contributing to your usage?' Rich Text block."""
+    window_hours = insights.get("window_hours", 24)
+    window_label = "Last 24h" if window_hours <= 24 else "Last 7 days"
+    total_tokens = insights.get("total_tokens", 0)
+
+    t = Text()
+    t.append("─" * 38 + "\n", style="dim")
+    t.append("What's contributing to your usage?\n", style="bold")
+    t.append(
+        "Approximate, based on local sessions on this machine\n",
+        style="dim",
+    )
+    t.append("\n")
+    t.append(window_label, style="dim #CC785C")
+    t.append(" · independent characteristics, not a breakdown\n", style="dim")
+
+    if total_tokens == 0:
+        t.append("\nNo usage recorded in this window.\n", style="dim italic")
+    else:
+        for char in insights.get("characteristics", []):
+            t.append("\n")
+            t.append(char["description"] + "\n", style="bold #E8956D")
+            t.append(" " + char["advice"] + "\n", style="dim")
+
+        top_projects = [p for p in insights.get("top_projects", []) if p.get("pct", 0) > 0]
+        if top_projects:
+            t.append("\n")
+            t.append(f"{'Projects':<22}", style="bold #CC785C")
+            t.append(f"{'% of usage':>10}\n", style="dim")
+            for proj in top_projects:
+                t.append(f"  {proj['name']:<20}", style="#E8956D")
+                t.append(f"{proj['pct']:>8}%\n", style="dim")
+
+    t.append("\n")
+    t.append("d", style="bold #CC785C")
+    t.append(" to day · ", style="dim")
+    t.append("w", style="bold #CC785C")
+    t.append(" to week\n", style="dim")
+
+    return t
+
+
 class UsageDisplay(Vertical):
     """Widget to display summary usage statistics."""
 
@@ -435,6 +478,8 @@ class ClaudeTop(App):
     BINDINGS = [
         ("q", "quit", "Quit"),
         ("r", "refresh", "Refresh"),
+        ("d", "set_window_day", "Day view"),
+        ("w", "set_window_week", "Week view"),
     ]
 
     def __init__(
@@ -450,6 +495,8 @@ class ClaudeTop(App):
         self.usage_data: Optional[dict[str, Any]] = None
         self._saved_theme: Optional[str] = _load_settings().get("theme")
         self._token_warning: str = ""
+        self._time_window: int = 24
+        self._insights_data: Optional[dict[str, Any]] = None
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
@@ -483,8 +530,12 @@ class ClaudeTop(App):
 
         try:
             loop = asyncio.get_event_loop()
-            raw_data = await loop.run_in_executor(None, data.fetch_usage)
-            self.usage_data = data.format_usage_data(raw_data)
+            time_window = self._time_window
+            usage, insights = await loop.run_in_executor(
+                None, lambda: data.fetch_usage_and_insights(time_window)
+            )
+            self.usage_data = usage
+            self._insights_data = insights
             if self._token_warning:
                 self.usage_data["_token_warning"] = self._token_warning
             summary_widget.usage_data = self.usage_data
@@ -535,15 +586,18 @@ class ClaudeTop(App):
         # Try to get existing widgets, or create new ones on first run
         try:
             breakdown_widget = container.query_one("#token-breakdown", Static)
+            insights_widget = container.query_one("#insights-widget", Static)
             title = container.query_one("#models-title", Static)
             table = container.query_one("#models-table", DataTable)
             table.clear()
         except Exception:
             container.remove_children()
             breakdown_widget = Static("", id="token-breakdown")
+            insights_widget = Static("", id="insights-widget")
             title = Static("[bold #CC785C]Usage by Model[/bold #CC785C]", id="models-title")
             table = DataTable(id="models-table", show_header=True, zebra_stripes=True)
             container.mount(breakdown_widget)
+            container.mount(insights_widget)
             container.mount(title)
             container.mount(table)
 
@@ -583,6 +637,10 @@ class ClaudeTop(App):
         bd.append("\n")
         breakdown_widget.update(bd)
 
+        # Update insights widget
+        if self._insights_data is not None:
+            insights_widget.update(_render_insights(self._insights_data))
+
         # Update table columns if needed
         if not table.columns:
             table.add_columns("Model", "Input", "Output", "Requests")
@@ -607,6 +665,16 @@ class ClaudeTop(App):
     def action_refresh(self) -> None:
         """Refresh both API data and local session files on 'r' key."""
         self.run_worker(self._refresh_api_and_display())
+
+    def action_set_window_day(self) -> None:
+        """Switch insights window to last 24 hours."""
+        self._time_window = 24
+        self.run_worker(self._refresh_local())
+
+    def action_set_window_week(self) -> None:
+        """Switch insights window to last 7 days."""
+        self._time_window = 168
+        self.run_worker(self._refresh_local())
 
     def action_quit(self) -> None:
         """Quit the app."""
