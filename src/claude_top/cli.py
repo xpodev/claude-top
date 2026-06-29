@@ -62,6 +62,7 @@ def print_usage_table(usage_data: dict, show_detailed: bool = False) -> None:
     total_all = input_tokens + output_tokens + cache_creation + cache_read
 
     if total_all > 0:
+
         def _pct(n: int) -> str:
             return f"{n / total_all * 100:5.1f}%" if total_all > 0 else "  0.0%"
 
@@ -327,6 +328,7 @@ def main(
             launched = auth.try_launch_claude_for_refresh()
             if launched:
                 import time as _time
+
                 _time.sleep(5)
             if auth.is_token_expired():
                 err_console.print(

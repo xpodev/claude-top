@@ -557,6 +557,7 @@ class ClaudeTop(App):
         bd = Text()
         bd.append("Token Breakdown\n", style="bold #CC785C")
         if total_all > 0:
+
             def _pct(n: int) -> str:
                 return f"{n / total_all * 100:5.1f}%"
 
