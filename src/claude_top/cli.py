@@ -74,8 +74,7 @@ def print_usage_table(usage_data: dict, show_detailed: bool = False) -> None:
         )
         if cache_read > 0:
             console.print(
-                f"  [dim]Cache Reads [/dim] [#52A66A]{cache_read:>10,}[/#52A66A]  [dim]{_pct(cache_read)}[/dim]"
-                "  [dim italic]← saved[/dim italic]"
+                f"  [dim]Cache Reads [/dim] [#52A66A]{cache_read:>10,}[/#52A66A]  [dim]{_pct(cache_read)}  (saved)[/dim]"
             )
         if cache_creation > 0:
             console.print(
@@ -195,20 +194,11 @@ def print_usage_table(usage_data: dict, show_detailed: bool = False) -> None:
         daily_color = "#52A66A" if daily_pct < 70 else "#E8A84D" if daily_pct < 90 else "#D96B6B"
 
         with Progress(
-            TextColumn("[progress.description]{task.description}"),
             BarColumn(complete_style=daily_color, finished_style=daily_color),
             TextColumn("{task.percentage:>3.0f}%"),
             console=console,
         ) as progress:
-            progress.add_task(
-                f"Tokens: {status['daily_tokens_used']:,} / {status['daily_tokens_limit']:,}",
-                total=100,
-                completed=daily_pct,
-            )
-
-        console.print(
-            f"  {status['daily_tokens_used']:,} / {status['daily_tokens_limit']:,} tokens [dim]({status['daily_tokens_remaining']:,} remaining)[/dim]"
-        )
+            progress.add_task("", total=100, completed=daily_pct)
 
         # Weekly usage
         weekly_countdown = status.get("weekly_reset_countdown", "unknown")
@@ -222,20 +212,11 @@ def print_usage_table(usage_data: dict, show_detailed: bool = False) -> None:
         weekly_color = "#52A66A" if weekly_pct < 70 else "#E8A84D" if weekly_pct < 90 else "#D96B6B"
 
         with Progress(
-            TextColumn("[progress.description]{task.description}"),
             BarColumn(complete_style=weekly_color, finished_style=weekly_color),
             TextColumn("{task.percentage:>3.0f}%"),
             console=console,
         ) as progress:
-            progress.add_task(
-                f"Tokens: {status['weekly_tokens_used']:,} / {status['weekly_tokens_limit']:,}",
-                total=100,
-                completed=weekly_pct,
-            )
-
-        console.print(
-            f"  {status['weekly_tokens_used']:,} / {status['weekly_tokens_limit']:,} tokens [dim]({status['weekly_tokens_remaining']:,} remaining)[/dim]"
-        )
+            progress.add_task("", total=100, completed=weekly_pct)
 
     if usage_data.get("period"):
         period = usage_data["period"]

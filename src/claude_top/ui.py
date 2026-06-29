@@ -142,7 +142,7 @@ class UsageDisplay(Vertical):
                         ("  Cache Reads  ", "dim"),
                         (f"{cache_read:>10,}", "#52A66A"),
                         (f"  {_pct(cache_read)}", "dim"),
-                        ("  ← saved", "dim italic"),
+                        ("  (saved)", "dim italic"),
                     )
                 )
             if cache_creation > 0:
