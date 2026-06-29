@@ -54,6 +54,34 @@ def print_usage_table(usage_data: dict, show_detailed: bool = False) -> None:
         f"[bold #CC785C]Total Requests:[/bold #CC785C] [{total_color}]{usage_data['total_requests']:,}[/{total_color}]"
     )
 
+    # Token type breakdown (always visible)
+    input_tokens = usage_data.get("total_input_tokens", 0)
+    output_tokens = usage_data.get("total_output_tokens", 0)
+    cache_creation = usage_data.get("total_cache_creation_tokens", 0)
+    cache_read = usage_data.get("total_cache_read_tokens", 0)
+    total_all = input_tokens + output_tokens + cache_creation + cache_read
+
+    if total_all > 0:
+        def _pct(n: int) -> str:
+            return f"{n / total_all * 100:5.1f}%" if total_all > 0 else "  0.0%"
+
+        console.print("\n[bold #CC785C]Token Breakdown:[/bold #CC785C]")
+        console.print(
+            f"  [dim]Input       [/dim] [#E8956D]{input_tokens:>10,}[/#E8956D]  [dim]{_pct(input_tokens)}[/dim]"
+        )
+        console.print(
+            f"  [dim]Output      [/dim] [#52A66A]{output_tokens:>10,}[/#52A66A]  [dim]{_pct(output_tokens)}[/dim]"
+        )
+        if cache_read > 0:
+            console.print(
+                f"  [dim]Cache Reads [/dim] [#52A66A]{cache_read:>10,}[/#52A66A]  [dim]{_pct(cache_read)}[/dim]"
+                "  [dim italic]← saved[/dim italic]"
+            )
+        if cache_creation > 0:
+            console.print(
+                f"  [dim]Cache Writes[/dim] [#E8A84D]{cache_creation:>10,}[/#E8A84D]  [dim]{_pct(cache_creation)}[/dim]"
+            )
+
     # Explicit alerts in normal view for threshold visibility.
     if status.get("tier_available"):
         daily_pct = status.get("daily_tokens_percentage", 0)
@@ -237,13 +265,15 @@ def print_usage_table(usage_data: dict, show_detailed: bool = False) -> None:
         console.print()
         table = Table(title="Usage by Model", border_style="#CC785C")
         table.add_column("Model", style="#E8956D")
-        table.add_column("Tokens", justify="right", style="#CC785C")
+        table.add_column("Input", justify="right", style="#CC785C")
+        table.add_column("Output", justify="right", style="#52A66A")
         table.add_column("Requests", justify="right", style="#52A66A")
 
         for model, stats in usage_data["models"].items():
             table.add_row(
                 model,
-                f"{stats.get('tokens', 0):,}",
+                f"{stats.get('input_tokens', 0):,}",
+                f"{stats.get('output_tokens', 0):,}",
                 f"{stats.get('requests', 0):,}",
             )
 

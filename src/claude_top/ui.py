@@ -77,6 +77,52 @@ class UsageDisplay(Vertical):
             )
         )
 
+        # Token type breakdown (always visible)
+        input_tokens = usage.get("total_input_tokens", 0)
+        output_tokens = usage.get("total_output_tokens", 0)
+        cache_creation = usage.get("total_cache_creation_tokens", 0)
+        cache_read = usage.get("total_cache_read_tokens", 0)
+        total_all = input_tokens + output_tokens + cache_creation + cache_read
+
+        if total_all > 0:
+
+            def _pct(n: int) -> str:
+                return f"{n / total_all * 100:5.1f}%" if total_all > 0 else "  0.0%"
+
+            lines.append(Text(""))
+            lines.append(Text("Token Breakdown:", style="bold #CC785C"))
+            lines.append(
+                Text.assemble(
+                    ("  Input        ", "dim"),
+                    (f"{input_tokens:>10,}", "#E8956D"),
+                    (f"  {_pct(input_tokens)}", "dim"),
+                )
+            )
+            lines.append(
+                Text.assemble(
+                    ("  Output       ", "dim"),
+                    (f"{output_tokens:>10,}", "#52A66A"),
+                    (f"  {_pct(output_tokens)}", "dim"),
+                )
+            )
+            if cache_read > 0:
+                lines.append(
+                    Text.assemble(
+                        ("  Cache Reads  ", "dim"),
+                        (f"{cache_read:>10,}", "#52A66A"),
+                        (f"  {_pct(cache_read)}", "dim"),
+                        ("  ← saved", "dim italic"),
+                    )
+                )
+            if cache_creation > 0:
+                lines.append(
+                    Text.assemble(
+                        ("  Cache Writes ", "dim"),
+                        (f"{cache_creation:>10,}", "#E8A84D"),
+                        (f"  {_pct(cache_creation)}", "dim"),
+                    )
+                )
+
         if status.get("tier_available"):
             daily_pct = status.get("daily_tokens_percentage", 0)
             weekly_pct = status.get("weekly_tokens_percentage", 0)
@@ -489,7 +535,7 @@ class ClaudeTop(App):
 
         # Update table columns if needed
         if not table.columns:
-            table.add_columns("Model", "Tokens", "Requests")
+            table.add_columns("Model", "Input", "Output", "Requests")
 
         # Add rows
         models = self.usage_data.get("models", {})
@@ -497,7 +543,8 @@ class ClaudeTop(App):
             for model, stats in models.items():
                 table.add_row(
                     model,
-                    f"{stats.get('tokens', 0):,}",
+                    f"{stats.get('input_tokens', 0):,}",
+                    f"{stats.get('output_tokens', 0):,}",
                     f"{stats.get('requests', 0):,}",
                 )
 
