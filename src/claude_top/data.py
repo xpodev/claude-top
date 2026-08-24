@@ -518,9 +518,7 @@ def format_usage_data(data: dict[str, Any]) -> dict[str, Any]:
     return formatted
 
 
-def compute_usage_insights(
-    events: list[dict[str, Any]], window_hours: int = 24
-) -> dict[str, Any]:
+def compute_usage_insights(events: list[dict[str, Any]], window_hours: int = 24) -> dict[str, Any]:
     """
     Compute 'What's contributing?' characteristics from session events.
 
@@ -568,27 +566,31 @@ def compute_usage_insights(
     if total_tokens > 0:
         if high_context_tokens > 0:
             pct = round(high_context_tokens / total_tokens * 100)
-            characteristics.append({
-                "pct": pct,
-                "description": f"{pct}% of your usage was at >{HIGH_CONTEXT_THRESHOLD // 1000}k context",
-                "advice": (
-                    "Longer sessions are more expensive even when cached. "
-                    "Use /compact mid-task, /clear when switching to new tasks."
-                ),
-            })
+            characteristics.append(
+                {
+                    "pct": pct,
+                    "description": f"{pct}% of your usage was at >{HIGH_CONTEXT_THRESHOLD // 1000}k context",
+                    "advice": (
+                        "Longer sessions are more expensive even when cached. "
+                        "Use /compact mid-task, /clear when switching to new tasks."
+                    ),
+                }
+            )
 
         if top_projects:
             top_name, top_tok = top_projects[0]
             top_pct = round(top_tok / total_tokens * 100)
             if top_pct >= 5:
-                characteristics.append({
-                    "pct": top_pct,
-                    "description": f"{top_pct}% of your usage came from {top_name}",
-                    "advice": (
-                        "Heavy projects consume more tokens. "
-                        "Use /compact regularly to reduce context size."
-                    ),
-                })
+                characteristics.append(
+                    {
+                        "pct": top_pct,
+                        "description": f"{top_pct}% of your usage came from {top_name}",
+                        "advice": (
+                            "Heavy projects consume more tokens. "
+                            "Use /compact regularly to reduce context size."
+                        ),
+                    }
+                )
 
     return {
         "window_hours": window_hours,
