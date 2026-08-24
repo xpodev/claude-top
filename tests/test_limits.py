@@ -44,6 +44,36 @@ def test_get_usage_status_with_api_data():
     assert "weekly_tokens_used" not in status
 
 
+def test_get_fable_status_no_fable_usage():
+    """No Fable tokens used means the feature is not reported as available."""
+    usage_data = {"weekly_comparison": {"fable_this_week_tokens": 0, "this_week_tokens": 1000}}
+    status = {"tier_available": True, "weekly_tokens_percentage": 10.0}
+    result = limits.get_fable_status(usage_data, status)
+    assert result == {"fable_available": False}
+
+
+def test_get_fable_status_without_api_percentage():
+    """Fable tokens exist but no API percentage is available: report tokens, no estimate."""
+    usage_data = {"weekly_comparison": {"fable_this_week_tokens": 500, "this_week_tokens": 2000}}
+    status = {"tier_available": False}
+    result = limits.get_fable_status(usage_data, status)
+    assert result["fable_available"] is True
+    assert result["fable_week_tokens"] == 500
+    assert result["estimated_subcap_pct"] is None
+
+
+def test_get_fable_status_estimates_subcap_pct():
+    """Estimated % is derived from local Fable tokens and the API's overall weekly %."""
+    # 1000 tokens used this week == 10% of the weekly limit -> implied budget = 10000.
+    # 50% sub-cap = 5000 tokens. 500 Fable tokens -> 10% of the sub-cap.
+    usage_data = {"weekly_comparison": {"fable_this_week_tokens": 500, "this_week_tokens": 1000}}
+    status = {"tier_available": True, "weekly_tokens_percentage": 10.0}
+    result = limits.get_fable_status(usage_data, status)
+    assert result["fable_available"] is True
+    assert result["fable_week_tokens"] == 500
+    assert result["estimated_subcap_pct"] == 10.0
+
+
 def test_parse_countdown_unknown_when_none():
     """None resets_at returns 'unknown'."""
     from datetime import datetime, timezone

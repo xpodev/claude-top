@@ -29,6 +29,11 @@ ESTIMATED_PRICING_USD_PER_MILLION = {
 HIGH_CONTEXT_THRESHOLD = 150_000
 
 
+def _is_fable_model(model: str) -> bool:
+    """Return True if the model id refers to a Fable-family model (e.g. claude-fable-5)."""
+    return "fable" in model.lower()
+
+
 class UsageDataError(Exception):
     """Error reading usage data from local files."""
 
@@ -269,6 +274,7 @@ def extract_usage_from_events(events: list[dict[str, Any]]) -> dict[str, Any]:
         "total_output_tokens": 0,
         "total_cache_creation_tokens": 0,
         "total_cache_read_tokens": 0,
+        "total_fable_tokens": 0,
         "models": defaultdict(
             lambda: {
                 "requests": 0,
@@ -290,6 +296,7 @@ def extract_usage_from_events(events: list[dict[str, Any]]) -> dict[str, Any]:
             "last_week_tokens": 0,
             "this_week_requests": 0,
             "last_week_requests": 0,
+            "fable_this_week_tokens": 0,
         },
         "sessions": set(),
         "first_message": None,
@@ -344,6 +351,10 @@ def extract_usage_from_events(events: list[dict[str, Any]]) -> dict[str, Any]:
                 usage_data["projects"][project_name]["requests"] += 1
                 usage_data["projects"][project_name]["tokens"] += total_event_tokens
 
+                is_fable = _is_fable_model(model)
+                if is_fable:
+                    usage_data["total_fable_tokens"] += total_event_tokens
+
                 # Trends and historical comparison
                 event_dt = _parse_timestamp_utc(event.get("timestamp"))
                 if event_dt:
@@ -355,6 +366,10 @@ def extract_usage_from_events(events: list[dict[str, Any]]) -> dict[str, Any]:
                     if 0 <= age_days <= 6:
                         usage_data["weekly_comparison"]["this_week_tokens"] += total_event_tokens
                         usage_data["weekly_comparison"]["this_week_requests"] += 1
+                        if is_fable:
+                            usage_data["weekly_comparison"][
+                                "fable_this_week_tokens"
+                            ] += total_event_tokens
                     elif 7 <= age_days <= 13:
                         usage_data["weekly_comparison"]["last_week_tokens"] += total_event_tokens
                         usage_data["weekly_comparison"]["last_week_requests"] += 1
@@ -443,6 +458,7 @@ def format_usage_data(data: dict[str, Any]) -> dict[str, Any]:
         "total_output_tokens": data.get("total_output_tokens", 0),
         "total_cache_creation_tokens": data.get("total_cache_creation_tokens", 0),
         "total_cache_read_tokens": data.get("total_cache_read_tokens", 0),
+        "total_fable_tokens": data.get("total_fable_tokens", 0),
         "total_requests": data.get("total_requests", 0),
         "total_sessions": data.get("total_sessions", 0),
         "models": {},

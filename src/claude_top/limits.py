@@ -150,3 +150,53 @@ def get_usage_status(usage_data: dict[str, Any]) -> dict[str, Any]:
         "weekly_tokens_percentage": float(seven_day.get("utilization", 0.0)),
         "weekly_reset_countdown": _parse_countdown(seven_day.get("resets_at"), now),
     }
+
+
+def get_fable_status(usage_data: dict[str, Any], status: dict[str, Any]) -> dict[str, Any]:
+    """
+    Estimate how much of the weekly Fable 5 sub-cap has been used.
+
+    On Max / Team Premium / premium Enterprise plans, Fable 5 shares the same
+    weekly token pool as other models but is capped at 50% of it. Anthropic's
+    /usage API only reports aggregate weekly utilization, not a per-model
+    breakdown, so this estimate is derived from local session token counts
+    combined with the API's overall weekly percentage: it assumes tokens map
+    to the weekly limit at the same rate for every model, which is not true —
+    Fable burns through the pool faster per token than other models. Treat the
+    result as a rough, local-only signal, not an authoritative figure.
+
+    Args:
+        usage_data: Formatted usage data from local session files
+        status: Result of get_usage_status(usage_data)
+
+    Returns:
+        Dictionary with fable_available, and (when computable) fable_week_tokens
+        and estimated_subcap_pct.
+    """
+    weekly_comparison = usage_data.get("weekly_comparison", {})
+    fable_week_tokens = weekly_comparison.get("fable_this_week_tokens", 0)
+
+    if fable_week_tokens <= 0:
+        return {"fable_available": False}
+
+    weekly_pct = status.get("weekly_tokens_percentage")
+    this_week_tokens = weekly_comparison.get("this_week_tokens", 0)
+
+    if not status.get("tier_available") or not weekly_pct or this_week_tokens <= 0:
+        return {
+            "fable_available": True,
+            "fable_week_tokens": fable_week_tokens,
+            "estimated_subcap_pct": None,
+        }
+
+    implied_weekly_budget_tokens = this_week_tokens / (weekly_pct / 100)
+    fable_subcap_tokens = implied_weekly_budget_tokens * 0.5
+    estimated_subcap_pct = (
+        (fable_week_tokens / fable_subcap_tokens) * 100 if fable_subcap_tokens > 0 else 0.0
+    )
+
+    return {
+        "fable_available": True,
+        "fable_week_tokens": fable_week_tokens,
+        "estimated_subcap_pct": estimated_subcap_pct,
+    }

@@ -257,6 +257,34 @@ class UsageDisplay(Vertical):
                     )
                 )
 
+            # Fable 5 usage (estimated share of the weekly Fable sub-cap)
+            fable_status = limits.get_fable_status(usage, status)
+            if fable_status.get("fable_available"):
+                lines.append(Text(""))
+                lines.append(
+                    Text.assemble(
+                        ("Fable 5 (this week): ", "bold #CC785C"),
+                        (f"{fable_status['fable_week_tokens']:,} tokens", "#E8956D"),
+                    )
+                )
+                subcap_pct = fable_status.get("estimated_subcap_pct")
+                if subcap_pct is not None:
+                    subcap_color = (
+                        "#52A66A"
+                        if subcap_pct < 70
+                        else "#E8A84D" if subcap_pct < 90 else "#D96B6B"
+                    )
+                    lines.append(
+                        Text.assemble(
+                            ("  ~", "dim"),
+                            (f"{subcap_pct:.0f}%", subcap_color),
+                            (
+                                " of est. 50% weekly Fable cap (local estimate, approx)",
+                                "dim italic",
+                            ),
+                        )
+                    )
+
             # Top projects by usage
             projects = usage.get("projects", {})
             if projects:

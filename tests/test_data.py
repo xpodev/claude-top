@@ -75,3 +75,43 @@ def test_extract_usage_from_events():
     assert usage["total_sessions"] == 1
     assert "claude-sonnet-4-6" in usage["models"]
     assert usage["models"]["claude-sonnet-4-6"]["requests"] == 2
+
+
+def test_is_fable_model():
+    """Fable models are matched by substring, case-insensitively."""
+    assert data._is_fable_model("claude-fable-5")
+    assert data._is_fable_model("Claude-Fable-5")
+    assert not data._is_fable_model("claude-sonnet-4-6")
+
+
+def test_extract_usage_tracks_fable_tokens():
+    """Fable events contribute to total_fable_tokens and this week's fable bucket."""
+    from datetime import datetime, timezone
+
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    events = [
+        {
+            "type": "assistant",
+            "sessionId": "s1",
+            "timestamp": now_iso,
+            "message": {
+                "model": "claude-fable-5",
+                "usage": {"input_tokens": 100, "output_tokens": 50},
+            },
+        },
+        {
+            "type": "assistant",
+            "sessionId": "s1",
+            "timestamp": now_iso,
+            "message": {
+                "model": "claude-sonnet-4-6",
+                "usage": {"input_tokens": 200, "output_tokens": 100},
+            },
+        },
+    ]
+
+    usage = data.extract_usage_from_events(events)
+
+    assert usage["total_fable_tokens"] == 150
+    assert usage["weekly_comparison"]["fable_this_week_tokens"] == 150
+    assert usage["weekly_comparison"]["this_week_tokens"] == 450

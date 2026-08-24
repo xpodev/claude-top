@@ -157,6 +157,23 @@ def print_usage_table(usage_data: dict, show_detailed: bool = False) -> None:
                 f"([{delta_color}]{delta:+.1f}%[/{delta_color}])"
             )
 
+        # Fable 5 usage (estimated share of the weekly Fable sub-cap)
+        fable_status = limits.get_fable_status(usage_data, status)
+        if fable_status.get("fable_available"):
+            console.print(
+                f"[bold #CC785C]Fable 5 (this week):[/bold #CC785C] "
+                f"[#E8956D]{fable_status['fable_week_tokens']:,} tokens[/#E8956D]"
+            )
+            subcap_pct = fable_status.get("estimated_subcap_pct")
+            if subcap_pct is not None:
+                subcap_color = (
+                    "#52A66A" if subcap_pct < 70 else "#E8A84D" if subcap_pct < 90 else "#D96B6B"
+                )
+                console.print(
+                    f"  [dim]~[/dim][{subcap_color}]{subcap_pct:.0f}%[/{subcap_color}] "
+                    "[dim italic]of est. 50% weekly Fable cap (local estimate, approx)[/dim italic]"
+                )
+
         # Breakdown by project (top 5)
         projects = usage_data.get("projects", {})
         if projects:
