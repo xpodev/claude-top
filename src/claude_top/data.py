@@ -12,6 +12,11 @@ import requests
 _api_usage_cache: Optional[dict[str, Any]] = None
 _api_cache_timestamp: Optional[datetime] = None
 
+# Cache of parsed session file events, keyed by file path, so unchanged
+# files aren't re-read and re-parsed on every refresh tick.
+# Value: (mtime_ns, size, parsed events for that file)
+_session_file_cache: dict[str, tuple[int, int, list[dict[str, Any]]]] = {}
+
 # Rough blended token pricing used for informational estimates only.
 ESTIMATED_PRICING_USD_PER_MILLION = {
     "input_tokens": 3.00,
@@ -185,9 +190,29 @@ def fetch_api_data_fresh() -> Optional[dict[str, Any]]:
     return fetch_usage_from_api(force_refresh=True)
 
 
+def _parse_jsonl_file(jsonl_file: Path) -> list[dict[str, Any]]:
+    """Parse a single JSONL session file into a list of events."""
+    file_events: list[dict[str, Any]] = []
+    try:
+        with open(jsonl_file, encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    try:
+                        file_events.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+    except OSError:
+        pass
+    return file_events
+
+
 def read_session_files() -> list[dict[str, Any]]:
     """
     Read all Claude Code session JSONL files.
+
+    Unchanged files (same mtime and size as the last read) are served from
+    an in-memory cache instead of being re-read and re-parsed, since session
+    history only grows and re-parsing it all on every refresh tick is wasteful.
 
     Returns:
         List of session events/messages
@@ -199,20 +224,31 @@ def read_session_files() -> list[dict[str, Any]]:
         return []
 
     events: list[dict[str, Any]] = []
+    seen_paths: set[str] = set()
 
-    # Read all .jsonl files in projects directory
     for jsonl_file in projects_dir.rglob("*.jsonl"):
+        path_key = str(jsonl_file)
+        seen_paths.add(path_key)
+
         try:
-            with open(jsonl_file, encoding="utf-8") as f:
-                for line in f:
-                    if line.strip():
-                        try:
-                            event = json.loads(line)
-                            events.append(event)
-                        except json.JSONDecodeError:
-                            continue
+            stat = jsonl_file.stat()
         except OSError:
             continue
+
+        cached = _session_file_cache.get(path_key)
+        if cached is not None and cached[0] == stat.st_mtime_ns and cached[1] == stat.st_size:
+            file_events = cached[2]
+        else:
+            file_events = _parse_jsonl_file(jsonl_file)
+            _session_file_cache[path_key] = (stat.st_mtime_ns, stat.st_size, file_events)
+
+        events.extend(file_events)
+
+    # Drop cache entries for files that no longer exist so the cache doesn't
+    # grow unbounded as old session files are removed.
+    stale_keys = _session_file_cache.keys() - seen_paths
+    for key in stale_keys:
+        del _session_file_cache[key]
 
     return events
 
