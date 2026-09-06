@@ -17,6 +17,18 @@ _api_cache_timestamp: Optional[datetime] = None
 # Value: (mtime_ns, size, parsed events for that file)
 _session_file_cache: dict[str, tuple[int, int, list[dict[str, Any]]]] = {}
 
+# Combined events list built from _session_file_cache, plus the cache
+# "generation" it was built at. Rebuilding this list (and everything derived
+# from it: usage extraction, insights) is only necessary when a session file
+# was actually added/changed/removed, not on every refresh tick.
+_combined_events_cache: Optional[list[dict[str, Any]]] = None
+_generation: int = 0
+
+# Cached results of the expensive per-event aggregation, keyed by the
+# generation (and, for insights, the time window) they were computed at.
+_usage_result_cache: Optional[tuple[int, dict[str, Any]]] = None
+_full_result_cache: Optional[tuple[int, int, dict[str, Any], dict[str, Any]]] = None
+
 # Rough blended token pricing used for informational estimates only.
 ESTIMATED_PRICING_USD_PER_MILLION = {
     "input_tokens": 3.00,
@@ -219,17 +231,24 @@ def read_session_files() -> list[dict[str, Any]]:
     an in-memory cache instead of being re-read and re-parsed, since session
     history only grows and re-parsing it all on every refresh tick is wasteful.
 
+    The combined events list itself is also cached and only rebuilt when a
+    file was actually added, changed, or removed (tracked via `_generation`),
+    since concatenating tens of thousands of cached events back into a list
+    on every refresh tick is itself wasteful when nothing changed.
+
     Returns:
         List of session events/messages
     """
+    global _combined_events_cache, _generation
+
     claude_dir = get_claude_sessions_dir()
     projects_dir = claude_dir / "projects"
 
     if not projects_dir.exists():
         return []
 
-    events: list[dict[str, Any]] = []
     seen_paths: set[str] = set()
+    changed = False
 
     for jsonl_file in projects_dir.rglob("*.jsonl"):
         path_key = str(jsonl_file)
@@ -242,20 +261,28 @@ def read_session_files() -> list[dict[str, Any]]:
 
         cached = _session_file_cache.get(path_key)
         if cached is not None and cached[0] == stat.st_mtime_ns and cached[1] == stat.st_size:
-            file_events = cached[2]
-        else:
-            file_events = _parse_jsonl_file(jsonl_file)
-            _session_file_cache[path_key] = (stat.st_mtime_ns, stat.st_size, file_events)
+            continue
 
-        events.extend(file_events)
+        file_events = _parse_jsonl_file(jsonl_file)
+        _session_file_cache[path_key] = (stat.st_mtime_ns, stat.st_size, file_events)
+        changed = True
 
     # Drop cache entries for files that no longer exist so the cache doesn't
     # grow unbounded as old session files are removed.
     stale_keys = _session_file_cache.keys() - seen_paths
     for key in stale_keys:
         del _session_file_cache[key]
+    if stale_keys:
+        changed = True
 
-    return events
+    if changed or _combined_events_cache is None:
+        events: list[dict[str, Any]] = []
+        for path_key in seen_paths:
+            events.extend(_session_file_cache[path_key][2])
+        _combined_events_cache = events
+        _generation += 1
+
+    return _combined_events_cache
 
 
 def extract_usage_from_events(events: list[dict[str, Any]]) -> dict[str, Any]:
@@ -414,12 +441,16 @@ def fetch_usage() -> dict[str, Any]:
     """
     Fetch usage data from local Claude Code session files.
 
+    The expensive event aggregation is skipped and a cached result reused
+    when no session file has changed since the last call.
+
     Returns:
         Dictionary with usage statistics
 
     Raises:
         UsageDataError: If unable to read session data
     """
+    global _usage_result_cache
     try:
         events = read_session_files()
 
@@ -429,7 +460,11 @@ def fetch_usage() -> dict[str, Any]:
                 "Make sure you've used Claude Code and have active sessions."
             )
 
+        if _usage_result_cache is not None and _usage_result_cache[0] == _generation:
+            return _usage_result_cache[1]
+
         usage_data = extract_usage_from_events(events)
+        _usage_result_cache = (_generation, usage_data)
 
         return usage_data
 
@@ -626,7 +661,12 @@ def fetch_usage_and_insights(
     """
     Read session files once and return both formatted usage data and insights.
     More efficient than calling fetch_usage() and compute_usage_insights() separately.
+
+    The expensive per-event aggregation (which scales with total session
+    history, not with what changed) is skipped and a cached result reused
+    when no session file has changed since the last call for this window.
     """
+    global _full_result_cache
     try:
         events = read_session_files()
         if not events:
@@ -634,9 +674,18 @@ def fetch_usage_and_insights(
                 "No Claude Code session data found.\n"
                 "Make sure you've used Claude Code and have active sessions."
             )
+
+        if (
+            _full_result_cache is not None
+            and _full_result_cache[0] == _generation
+            and _full_result_cache[1] == window_hours
+        ):
+            return _full_result_cache[2], _full_result_cache[3]
+
         raw = extract_usage_from_events(events)
         formatted = format_usage_data(raw)
         insights = compute_usage_insights(events, window_hours)
+        _full_result_cache = (_generation, window_hours, formatted, insights)
         return formatted, insights
     except UsageDataError:
         raise

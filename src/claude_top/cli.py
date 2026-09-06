@@ -324,8 +324,8 @@ def main(
 
     api_refresh_minutes = api_refresh if api_refresh is not None else 1
 
-    # Launch TUI if no flags
-    if not no_ui and not json:
+    # Launch TUI if no flags (but --once always means print-and-exit, never the TUI)
+    if not once and not no_ui and not json:
         app_instance = ClaudeTop(
             watch_interval=watch_interval,
             api_refresh_minutes=api_refresh_minutes,
