@@ -207,15 +207,58 @@ def fetch_api_data_fresh() -> Optional[dict[str, Any]]:
     return fetch_usage_from_api(force_refresh=True)
 
 
+# Top-level fields _infer_project_name() reads off an event.
+_PROJECT_FIELDS = ("project", "projectName", "cwd", "projectPath", "path")
+
+
+def _slim_event(raw_event: dict[str, Any]) -> dict[str, Any]:
+    """
+    Keep only the fields extract_usage_from_events()/compute_usage_insights()
+    ever read, and drop the rest immediately after parsing.
+
+    Session JSONL lines carry full message content (assistant response text,
+    tool_use/tool_result payloads, embedded file contents, ...) that dwarfs
+    the handful of usage fields we actually need. Caching the full parsed
+    event forever (to avoid re-parsing unchanged files) means that content
+    sits in memory indefinitely for no reason -- slimming it here is what
+    "releasing what we don't need" actually looks like for this cache.
+    """
+    slim: dict[str, Any] = {}
+
+    event_type = raw_event.get("type")
+    if event_type is not None:
+        slim["type"] = event_type
+
+    session_id = raw_event.get("sessionId")
+    if session_id is not None:
+        slim["sessionId"] = session_id
+
+    timestamp = raw_event.get("timestamp")
+    if timestamp is not None:
+        slim["timestamp"] = timestamp
+
+    for field in _PROJECT_FIELDS:
+        value = raw_event.get(field)
+        if value is not None:
+            slim[field] = value
+
+    if event_type == "assistant":
+        message = raw_event.get("message")
+        if isinstance(message, dict):
+            slim["message"] = {"model": message.get("model"), "usage": message.get("usage")}
+
+    return slim
+
+
 def _parse_jsonl_file(jsonl_file: Path) -> list[dict[str, Any]]:
-    """Parse a single JSONL session file into a list of events."""
+    """Parse a single JSONL session file into a list of slimmed-down events."""
     file_events: list[dict[str, Any]] = []
     try:
         with open(jsonl_file, encoding="utf-8") as f:
             for line in f:
                 if line.strip():
                     try:
-                        file_events.append(json.loads(line))
+                        file_events.append(_slim_event(json.loads(line)))
                     except json.JSONDecodeError:
                         continue
     except OSError:

@@ -84,6 +84,53 @@ def test_is_fable_model():
     assert not data._is_fable_model("claude-sonnet-4-6")
 
 
+def test_slim_event_drops_message_content_keeps_usage_fields():
+    """Only fields the aggregation code reads survive slimming; bulky message
+    content (text/tool_use/tool_result payloads) must not be retained."""
+    raw_event = {
+        "type": "assistant",
+        "sessionId": "s1",
+        "timestamp": "2024-01-01T10:00:00Z",
+        "cwd": "/home/user/my-project",
+        "uuid": "unused-field",
+        "message": {
+            "model": "claude-sonnet-4-6",
+            "usage": {"input_tokens": 100, "output_tokens": 50},
+            "content": [{"type": "text", "text": "a" * 10_000}],
+            "id": "unused-field",
+        },
+    }
+
+    slim = data._slim_event(raw_event)
+
+    assert slim == {
+        "type": "assistant",
+        "sessionId": "s1",
+        "timestamp": "2024-01-01T10:00:00Z",
+        "cwd": "/home/user/my-project",
+        "message": {
+            "model": "claude-sonnet-4-6",
+            "usage": {"input_tokens": 100, "output_tokens": 50},
+        },
+    }
+
+
+def test_slim_event_non_assistant_has_no_message_key():
+    """Non-assistant events (user/tool_result/etc.) never carry a message
+    field forward since only 'assistant' events are aggregated for usage."""
+    raw_event = {
+        "type": "user",
+        "sessionId": "s1",
+        "timestamp": "2024-01-01T10:00:00Z",
+        "message": {"content": "large user prompt text"},
+    }
+
+    slim = data._slim_event(raw_event)
+
+    assert "message" not in slim
+    assert slim["type"] == "user"
+
+
 def test_extract_usage_tracks_fable_tokens():
     """Fable events contribute to total_fable_tokens and this week's fable bucket."""
     from datetime import datetime, timezone
