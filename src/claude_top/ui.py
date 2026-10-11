@@ -77,7 +77,10 @@ def _render_insights(insights: dict[str, Any]) -> Text:
 class UsageDisplay(Vertical):
     """Widget to display summary usage statistics."""
 
-    usage_data: reactive[Optional[dict[str, Any]]] = reactive(None)
+    # always_update: the local usage dict is cached in data.py and returned
+    # unchanged when no session file changed, but the display also depends on
+    # freshly fetched API data and the current time, so it must re-render anyway.
+    usage_data: reactive[Optional[dict[str, Any]]] = reactive(None, always_update=True)
 
     def __init__(self, show_detailed: bool = False, **kwargs):
         super().__init__(**kwargs)
@@ -562,7 +565,8 @@ class ClaudeTop(App):
             usage, insights = await loop.run_in_executor(
                 None, lambda: data.fetch_usage_and_insights(time_window)
             )
-            self.usage_data = usage
+            # Copy so the token warning doesn't leak into data.py's cached result
+            self.usage_data = {**usage}
             self._insights_data = insights
             if self._token_warning:
                 self.usage_data["_token_warning"] = self._token_warning
